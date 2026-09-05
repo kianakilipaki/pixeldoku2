@@ -1,0 +1,45 @@
+name: pixeldoku
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  supabase_flutter: ^2.5.6
+  purchases_flutter: ^10.0.1
+  unity_ads_plugin: ^0.3.30
+  provider: ^6.1.5+1
+  shared_preferences: ^2.5.5
+  sign_in_with_apple: ^8.0.0
+  audioplayers: ^6.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Silkscreen
+      fonts:
+        - asset: lib/assets/fonts/Silkscreen-Regular.ttf
+    - family: Fira Sans
+      fonts:
+        - asset: lib/assets/fonts/FiraSans-Regular.ttf
+          weight: 400
+  assets:
+    - lib/assets/
+    - lib/assets/fonts/
+    - lib/assets/icons/
+    - lib/assets/sfx/
+    - lib/assets/themes/birds/
+    - lib/assets/themes/bugs/
+    - lib/assets/themes/cats/
+    - lib/assets/themes/dogs/
+    - lib/assets/themes/fish/
+    - lib/assets/themes/swamp/
