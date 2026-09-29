@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:pixeldoku/core/utils/app_logger.dart';
+import 'package:pixeldoku/services/purchase_service.dart';
 import 'package:unity_ads_plugin/unity_ads_plugin.dart';
 import '../state/app_state.dart';
 
@@ -8,6 +11,13 @@ class AdsService {
   static bool _interstitialReady = false;
   static bool _isInitializing = false;
   static bool _isInitialized = false;
+  static bool _isLoadingInterstitial = false;
+  static bool _isShowingInterstitial = false;
+
+  static String get _interstitialPlacementId =>
+      defaultTargetPlatform == TargetPlatform.iOS
+      ? 'Interstitial_iOS'
+      : 'Interstitial_Android';
 
   // -----------------------------
   // IS READY
@@ -78,7 +88,7 @@ class AdsService {
       placementId: 'CoinShopAd',
       onComplete: (placementId) {
         AppLogger.log('Unity rewarded coins complete placement=$placementId');
-        appState.addCoins(100);
+        appState.addCoins(10);
 
         // reset state and preload next ad
         _isReady = false;
@@ -111,21 +121,74 @@ class AdsService {
     );
   }
 
-  static void showInterstitial() {
-    ensureInitialized();
-    if (!_interstitialReady) return;
+  static Future<bool> showInterstitial() async {
+    if (!await PurchaseService.shouldShowGameplayAds()) {
+      AppLogger.log('Unity interstitial skipped: gameplay ads removed');
+      return false;
+    }
 
-    UnityAds.showVideoAd(
-      placementId: 'Interstitial_LevelComplete',
-      onComplete: (placementId) {
-        AppLogger.log('Unity interstitial complete placement=$placementId');
-        _interstitialReady = false;
+    if (!_supportsUnityAds) {
+      AppLogger.log('Unity interstitial skipped unsupported platform');
+      return false;
+    }
+
+    ensureInitialized();
+    if (_isShowingInterstitial) {
+      AppLogger.log(
+        'Unity interstitial skipped because one is already showing',
+      );
+      return false;
+    }
+    _isShowingInterstitial = true;
+
+    if (!await _waitForInterstitial()) {
+      _isShowingInterstitial = false;
+      AppLogger.log(
+        'Unity interstitial unavailable after waiting for initialization/load',
+      );
+      return false;
+    }
+
+    _interstitialReady = false;
+    final result = Completer<bool>();
+
+    void finish(bool shown) {
+      if (result.isCompleted) return;
+      _isShowingInterstitial = false;
+      _loadInterstitial();
+      result.complete(shown);
+    }
+
+    try {
+      await UnityAds.showVideoAd(
+        placementId: _interstitialPlacementId,
+        onStart: (placementId) {
+          AppLogger.log('Unity interstitial started placement=$placementId');
+        },
+        onComplete: (placementId) {
+          AppLogger.log('Unity interstitial complete placement=$placementId');
+          finish(true);
+        },
+        onSkipped: (placementId) {
+          AppLogger.log('Unity interstitial skipped placement=$placementId');
+          finish(true);
+        },
+        onFailed: (placementId, error, message) {
+          AppLogger.log("Unity interstitial failed: $message");
+          finish(false);
+        },
+      );
+    } catch (error) {
+      AppLogger.log('Unity interstitial show exception: $error');
+      finish(false);
+    }
+
+    return result.future.timeout(
+      const Duration(seconds: 60),
+      onTimeout: () {
+        _isShowingInterstitial = false;
         _loadInterstitial();
-      },
-      onFailed: (placementId, error, message) {
-        _interstitialReady = false;
-        _loadInterstitial();
-        AppLogger.log("Unity interstitial failed: $message");
+        return false;
       },
     );
   }
@@ -146,20 +209,60 @@ class AdsService {
   }
 
   static void _loadInterstitial() {
+    if (!_supportsUnityAds ||
+        !_isInitialized ||
+        _interstitialReady ||
+        _isLoadingInterstitial) {
+      return;
+    }
+
+    _isLoadingInterstitial = true;
     AppLogger.log('Unity interstitial load start');
-    UnityAds.load(
-      placementId: 'Interstitial_LevelComplete',
-      onComplete: (placementId) {
-        _interstitialReady = true;
-        AppLogger.log(
-          'Unity interstitial load complete placement=$placementId',
-        );
-      },
-      onFailed: (placementId, error, message) {
+    try {
+      UnityAds.load(
+        placementId: _interstitialPlacementId,
+        onComplete: (placementId) {
+          _isLoadingInterstitial = false;
+          _interstitialReady = true;
+          AppLogger.log(
+            'Unity interstitial load complete placement=$placementId',
+          );
+        },
+        onFailed: (placementId, error, message) {
+          _isLoadingInterstitial = false;
+          _interstitialReady = false;
+          AppLogger.log(
+            'Unity interstitial failed to load error=$error message=$message',
+          );
+        },
+      ).catchError((Object error) {
+        _isLoadingInterstitial = false;
         _interstitialReady = false;
-        AppLogger.log("Unity interstitial failed to load: $message");
-      },
-    );
+        AppLogger.log('Unity interstitial load exception: $error');
+      });
+    } catch (error) {
+      _isLoadingInterstitial = false;
+      _interstitialReady = false;
+      AppLogger.log('Unity interstitial load exception: $error');
+    }
+  }
+
+  static Future<bool> _waitForInterstitial() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 6));
+    var retriedLoad = false;
+
+    while (DateTime.now().isBefore(deadline)) {
+      if (_interstitialReady) return true;
+
+      if (_isInitialized && !_isLoadingInterstitial && !retriedLoad) {
+        retriedLoad = true;
+        _loadInterstitial();
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+
+    return _interstitialReady;
   }
 
   static bool get _supportsUnityAds {

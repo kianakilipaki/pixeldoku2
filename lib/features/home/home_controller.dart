@@ -18,13 +18,15 @@ class HomeController {
     AppLogger.log(
       'HomeController.syncRemoteSaveToLocal start user=${userId ?? "null"} isLoading=${appState.isLoading}',
     );
-    if (appState.isLoading || _lastSyncedUserId == userId) {
+    if (appState.isLoading ||
+        (didSyncRemoteSaveToLocal && _lastSyncedUserId == userId)) {
       isSyncingRemoteSave = false;
       AppLogger.log('HomeController.syncRemoteSaveToLocal skipped');
       return;
     }
 
     if (appState.isOfflineMode || userId == null) {
+      _lastSyncedUserId = userId;
       didSyncRemoteSaveToLocal = true;
       isSyncingRemoteSave = false;
       AppLogger.log('HomeController.syncRemoteSaveToLocal skipped offline');
@@ -76,26 +78,41 @@ class HomeController {
     }
   }
 
-  Future<void> startOrContinueDaily(GameState gameState) async {
+  Future<bool> startOrContinueDaily(
+    GameState gameState,
+    AppState appState,
+  ) async {
     final today = GameState.formatDailyDateKey(DateTime.now());
+    if (appState.dailyOutcome(today) != null) return false;
     var loaded = false;
     try {
       final savedGame = await _storageService.loadLocalGameData(
         key: StorageService.dailyGameKey,
       );
+      if (savedGame?['dailyDateKey'] == today &&
+          (savedGame?['gameOver'] == true ||
+              savedGame?['gameCompleted'] == true)) {
+        return false;
+      }
       loaded =
           savedGame != null &&
           savedGame['dailyDateKey'] == today &&
           gameState.restoreFromJson(savedGame);
+      if (savedGame?['dailyDateKey'] == today && !loaded) {
+        await appState.recordDailyFailure(today);
+        return false;
+      }
     } catch (error, stackTrace) {
       AppLogger.error(
         'HomeController.startOrContinueDaily restore failed',
         error,
         stackTrace,
       );
+      return false;
     }
 
     if (!loaded) gameState.startDailyGame();
+    return true;
   }
 
   // -----------------------------

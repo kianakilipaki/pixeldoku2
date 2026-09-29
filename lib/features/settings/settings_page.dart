@@ -71,16 +71,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   onChanged: appState.setBoardHighlightsOn,
                 ),
                 ForestListRow(
-                  title: 'Active Theme',
-                  subtitle: 'Choose from your unlocked themes',
+                  title: 'Daily Theme',
+                  subtitle: 'Choose the theme used for Daily puzzles',
                   leading: Image.asset(
-                    appState.activeThemeData.iconAssets.first,
+                    appState.dailyThemeData.iconAssets.first,
                     width: 30,
                     height: 30,
                   ),
                   trailing: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
-                      value: appState.activeTheme,
+                      value: appState.dailyTheme,
                       dropdownColor: const Color(0xFF17212B),
                       style: const TextStyle(color: forestPanelText),
                       iconEnabledColor: forestGold,
@@ -93,7 +93,10 @@ class _SettingsPageState extends State<SettingsPage> {
                           )
                           .toList(),
                       onChanged: (value) {
-                        if (value != null) appState.setActiveTheme(value);
+                        if (value != null) {
+                          forestTapHaptic();
+                          appState.setDailyTheme(value);
+                        }
                       },
                     ),
                   ),
@@ -156,10 +159,20 @@ class _SettingToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     return ForestListRow(
       title: label,
-      leading: Icon(icon, color: forestGold, size: 25),
+      leading: icon == Icons.volume_up
+          ? Image.asset(
+              'lib/assets/icons/${value ? 'unmute' : 'mute'}.png',
+              width: 25,
+              height: 25,
+              filterQuality: FilterQuality.none,
+            )
+          : Icon(icon, color: forestGold, size: 25),
       trailing: Switch(
         value: value,
-        onChanged: onChanged,
+        onChanged: (newValue) {
+          forestTapHaptic();
+          onChanged(newValue);
+        },
         activeThumbColor: Colors.white,
         activeTrackColor: forestGold,
         inactiveThumbColor: Colors.white70,

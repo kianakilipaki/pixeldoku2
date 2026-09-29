@@ -1,0 +1,36 @@
+name: Keep Supabase active
+
+on:
+  schedule:
+    # Daily at 15:23 UTC. An off-hour minute reduces GitHub scheduling delays.
+    - cron: '23 15 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Read leaderboards
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Send read-only database requests
+        env:
+          SUPABASE_URL: https://ebbapummsxfluikikbes.supabase.co
+          # This is the same public/publishable key bundled in the Flutter app.
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_Mjy67YdON_KOSYlp37oB9g_1KKdggwd
+        run: |
+          for period in daily weekly monthly; do
+            curl --fail-with-body --silent --show-error \
+              --retry 3 \
+              --retry-all-errors \
+              --connect-timeout 15 \
+              --max-time 30 \
+              --request POST \
+              --header "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
+              --header "Authorization: Bearer ${SUPABASE_PUBLISHABLE_KEY}" \
+              --header "Content-Type: application/json" \
+              --data "{\"p_period\":\"${period}\"}" \
+              "${SUPABASE_URL}/rest/v1/rpc/get_competition_leaderboard"
+          done

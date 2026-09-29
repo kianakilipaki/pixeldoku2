@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:pixeldoku/models/theme_catalog.dart';
 import 'package:pixeldoku/models/title_catalog.dart';
 import 'package:pixeldoku/services/auth_service.dart';
 import 'package:pixeldoku/state/app_state.dart';
@@ -11,26 +12,24 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _gold = Color(0xFFEEC027);
 const _panelText = Color(0xFFFFE3A0);
-const _largePanel = 'lib/assets/wood-panel-curved.png';
-const _headerPanel = 'lib/assets/wood-panel-sm-lvs.png';
-const _woodPanelLong = 'lib/assets/wood-panel-long.png';
+const _largePanel = 'lib/assets/wood/wood-panel-curved.png';
+const _headerPanel = 'lib/assets/wood/wood-panel-sm-lvs.png';
+const _woodPanelLong = 'lib/assets/wood/wood-panel-long.png';
 const _lockAsset = 'lib/assets/icons/lock.png';
 const _largePanelAspectRatio = 508 / 593;
 const _headerPanelAspectRatio = 583 / 176;
 
-/// Metallic border used by the stats, section bodies, and authentication card.
-/// Alternating light and dark stops keep the frame readable over the artwork.
-const _shinyGoldGradient = LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
+/// Warm border gradient sampled from the yellow-orange title lettering.
+const _titleGoldGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
   colors: [
-    Color(0xFFFFF1A8),
-    Color(0xFFFFCB36),
-    Color(0xFF9B5A08),
-    Color(0xFFFFDF62),
-    Color(0xFFB36A0A),
+    Color(0xFFFFE75A),
+    Color(0xFFFFD12A),
+    Color(0xFFFFA40D),
+    Color(0xFFE87505),
   ],
-  stops: [0, 0.2, 0.48, 0.72, 1],
+  stops: [0, 0.32, 0.68, 1],
 );
 
 /// Player customization, progression, title, and account management screen.
@@ -57,16 +56,17 @@ class _ProfilePageState extends State<ProfilePage> {
     _authSubscription = _authService.authStateChanges.listen((state) async {
       if (!mounted) return;
 
+      final nextUser = state.session?.user ?? _authService.currentUser;
+
       setState(() {
-        _user = state.session?.user ?? _authService.currentUser;
+        _user = nextUser;
         _errorMessage = null;
       });
 
-      if (_isLoggedInUser(_user)) {
-        await _authService.ensureCurrentUserExists();
-      }
-
-      if (mounted) {
+      // Anonymous sessions are created internally by AppState to reserve a
+      // unique username. AppState also performs their initial cloud sync, so
+      // avoid racing it with a second reload here.
+      if (mounted && nextUser?.isAnonymous != true) {
         await context.read<AppState>().reloadAfterAuthChange();
       }
     });
@@ -167,7 +167,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Expanded(
                   child: ForestScrollFade(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(6, 8, 6, 18),
+                      padding: const EdgeInsets.fromLTRB(6, 2, 6, 24),
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 900),
@@ -180,13 +180,15 @@ class _ProfilePageState extends State<ProfilePage> {
                                     ? _displayName(user)
                                     : appState.name,
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 28),
                               _ProfileBackgroundPanel(appState: appState),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 28),
+                              _ThemeChooserPanel(appState: appState),
+                              const SizedBox(height: 28),
                               _ProfilePicturesPanel(appState: appState),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 28),
                               _TitlePanel(appState: appState),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 28),
                               _AuthPanel(
                                 isWorking: _isWorking,
                                 isLoggedIn: isLoggedIn,
@@ -225,7 +227,7 @@ class _ProfileHeader extends StatelessWidget {
     final panelHeight = panelWidth / _headerPanelAspectRatio;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 2),
       child: SizedBox(
         height: panelHeight + 4,
         child: Stack(
@@ -238,13 +240,13 @@ class _ProfileHeader extends StatelessWidget {
                   height: panelHeight,
                   child: DecoratedBox(
                     decoration: _woodDecoration(_headerPanel, radius: 10),
-                    child: const Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: 8),
-                        child: Text(
+                    child: Center(
+                      child: Transform.translate(
+                        offset: const Offset(0, 2),
+                        child: const Text(
                           'PROFILE',
                           style: TextStyle(
-                            color: _panelText,
+                            color: Colors.white,
                             fontSize: 30,
                             fontFamily: 'Silkscreen',
                             fontWeight: FontWeight.bold,
@@ -277,14 +279,21 @@ class _ProfileBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onTap,
-      tooltip: 'Back',
-      iconSize: 32,
-      color: Colors.white,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 54, height: 54),
-      icon: const Icon(Icons.arrow_back),
+    return ForestPressBounce(
+      child: IconButton(
+        onPressed: onTap,
+        tooltip: 'Back',
+        iconSize: 32,
+        color: forestSectionBorder,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 54, height: 54),
+        icon: Image.asset(
+          'lib/assets/icons/backArrow.png',
+          width: 32,
+          height: 32,
+          filterQuality: FilterQuality.none,
+        ),
+      ),
     );
   }
 }
@@ -303,91 +312,246 @@ class _HeroProfilePanel extends StatelessWidget {
         aspectRatio: _largePanelAspectRatio,
         child: _WoodPanel(
           asset: _largePanel,
-          padding: const EdgeInsets.fromLTRB(44, 36, 44, 48),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 197,
-                height: 197,
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: _shinyGoldGradient,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black54,
-                      offset: Offset(0, 4),
-                      blurRadius: 0,
-                    ),
-                  ],
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black.withValues(alpha: 0.45),
-                  ),
-                  child: ProfileGradientBackground(
-                    colorValue: appState.profilePictureBgColor,
-                    padding: const EdgeInsets.all(20),
-                    child: Image.asset(appState.profilePicture),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 360),
+          padding: const EdgeInsets.fromLTRB(44, 30, 44, 40),
+          child: LayoutBuilder(
+            builder: (context, constraints) => FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: constraints.maxWidth,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'NAME',
-                      style: TextStyle(
-                        color: _gold,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                    Transform.translate(
+                      offset: const Offset(0, -2),
+                      child: Container(
+                        width: 168,
+                        height: 168,
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: _titleGoldGradient,
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black54,
+                              offset: Offset(0, 4),
+                              blurRadius: 0,
+                            ),
+                          ],
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withValues(alpha: 0.45),
+                          ),
+                          child: ProfileGradientBackground(
+                            colorValue: appState.profilePictureBgColor,
+                            padding: const EdgeInsets.all(17),
+                            child: Image.asset(appState.profilePicture),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
-                    TextFormField(
-                      initialValue: appState.name,
-                      textAlign: TextAlign.left,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontFamily: 'Silkscreen',
-                        fontWeight: FontWeight.bold,
-                        shadows: [_pixelShadow],
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'NAME',
+                            style: TextStyle(
+                              color: _gold,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          _PlayerNameField(
+                            initialName: appState.name,
+                            onSave: appState.setPlayerName,
+                          ),
+                        ],
                       ),
-                      decoration: const InputDecoration(
-                        suffixIcon: Icon(
-                          Icons.edit,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
+                    ),
+                    const SizedBox(height: 5),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _TitleBadge(title: appState.playerTitle),
                       ),
-                      onFieldSubmitted: appState.setPlayerName,
+                    ),
+                    const SizedBox(height: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: _StatsStrip(appState: appState),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 360),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: _TitleBadge(title: appState.playerTitle),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _StatsStrip(appState: appState),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PlayerNameField extends StatefulWidget {
+  const _PlayerNameField({required this.initialName, required this.onSave});
+
+  final String initialName;
+  final Future<String?> Function(String value) onSave;
+
+  @override
+  State<_PlayerNameField> createState() => _PlayerNameFieldState();
+}
+
+class _PlayerNameFieldState extends State<_PlayerNameField> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+  late String _lastSavedName;
+  bool _isDirty = false;
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+    _focusNode = FocusNode();
+    _lastSavedName = widget.initialName.trim();
+  }
+
+  @override
+  void didUpdateWidget(_PlayerNameField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus &&
+        widget.initialName != oldWidget.initialName &&
+        _controller.text != widget.initialName) {
+      _controller.text = widget.initialName;
+      _lastSavedName = widget.initialName.trim();
+      _isDirty = false;
+      _errorMessage = null;
+    }
+  }
+
+  void _handleChanged(String value) {
+    final dirty = value.trim() != _lastSavedName;
+    if (dirty == _isDirty && _errorMessage == null) return;
+    setState(() {
+      _isDirty = dirty;
+      _errorMessage = null;
+    });
+  }
+
+  Future<void> _saveNow() async {
+    if (!_isDirty || _isSaving) return;
+    final name = _controller.text.trim();
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+    final error = await widget.onSave(name);
+    if (!mounted) return;
+    setState(() {
+      _isSaving = false;
+      _errorMessage = error;
+      if (error == null) {
+        _lastSavedName = _controller.text.trim();
+        _isDirty = false;
+      }
+    });
+    if (error == null) {
+      _focusNode.unfocus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _controller,
+                focusNode: _focusNode,
+                textAlign: TextAlign.left,
+                textInputAction: TextInputAction.done,
+                maxLength: 20,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontFamily: 'Silkscreen',
+                  fontWeight: FontWeight.bold,
+                  shadows: [_pixelShadow],
+                ),
+                decoration: const InputDecoration(
+                  suffixIcon: Icon(Icons.edit, color: Colors.white, size: 20),
+                  suffixIconConstraints: BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
+                  border: InputBorder.none,
+                  counterText: '',
+                  contentPadding: EdgeInsets.zero,
+                  isDense: true,
+                ),
+                onTap: forestTapHaptic,
+                onChanged: _handleChanged,
+                onFieldSubmitted: (_) => _saveNow(),
+                onTapOutside: (_) => _focusNode.unfocus(),
+              ),
+            ),
+            if (_isDirty) ...[
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 78,
+                height: 36,
+                child: ForestPressBounce(
+                  enabled: !_isSaving,
+                  child: ElevatedButton(
+                    onPressed: _isSaving ? null : _saveNow,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      backgroundColor: const Color(0xFF477D20),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFF79A32D)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                    ),
+                    child: FittedBox(child: Text(_isSaving ? '...' : 'SAVE')),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            _errorMessage!,
+            style: const TextStyle(
+              color: Color(0xFFFF9B8D),
+              fontFamily: 'Fira Sans',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -405,11 +569,11 @@ class _TitleBadge extends StatelessWidget {
       children: [
         Image.asset(
           'lib/assets/icons/star.png',
-          width: 16,
-          height: 16,
+          width: 20,
+          height: 20,
           excludeFromSemantics: true,
         ),
-        const SizedBox(width: 7),
+        const SizedBox(width: 8),
         Flexible(
           child: Text(
             title.toUpperCase(),
@@ -417,7 +581,7 @@ class _TitleBadge extends StatelessWidget {
             style: const TextStyle(
               color: _gold,
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: 18,
               letterSpacing: 0,
               shadows: [_pixelShadow],
             ),
@@ -438,8 +602,9 @@ class _ProfileBackgroundPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SectionPanel(
       title: 'PROFILE BACKGROUND',
-      padding: const EdgeInsets.fromLTRB(24, 92, 24, 24),
+      padding: const EdgeInsets.fromLTRB(24, 64, 24, 24),
       child: Wrap(
+        alignment: WrapAlignment.center,
         spacing: 18,
         runSpacing: 16,
         children:
@@ -456,41 +621,161 @@ class _ProfileBackgroundPanel extends StatelessWidget {
               0xFF314B78,
               0xFF55417F,
               0xFF8B9BA8,
+              0xFFB44B45,
+              0xFF9A4F79,
+              0xFFC8A96B,
             ].map((colorValue) {
               final selected = colorValue == appState.profilePictureBgColor;
 
-              return GestureDetector(
-                onTap: () => appState.setProfilePictureBgColor(colorValue),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  padding: EdgeInsets.all(selected ? 4 : 0),
-                  decoration: BoxDecoration(
-                    gradient: selected ? _shinyGoldGradient : null,
-                    shape: BoxShape.circle,
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black54,
-                        offset: Offset(0, 3),
-                        blurRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: DecoratedBox(
+              return ForestPressBounce(
+                child: GestureDetector(
+                  onTap: () => appState.setProfilePictureBgColor(colorValue),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    padding: EdgeInsets.all(selected ? 4 : 0),
                     decoration: BoxDecoration(
-                      gradient: profileBackgroundGradient(colorValue),
+                      gradient: selected ? _titleGoldGradient : null,
                       shape: BoxShape.circle,
-                      border: selected
-                          ? null
-                          : Border.all(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              width: 2,
-                            ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black54,
+                          offset: Offset(0, 3),
+                          blurRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: profileBackgroundGradient(colorValue),
+                        shape: BoxShape.circle,
+                        border: selected
+                            ? null
+                            : Border.all(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                width: 2,
+                              ),
+                      ),
                     ),
                   ),
                 ),
               );
             }).toList(),
+      ),
+    );
+  }
+}
+
+class _ThemeChooserPanel extends StatelessWidget {
+  const _ThemeChooserPanel({required this.appState});
+
+  final AppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionPanel(
+      title: 'DAILY THEME',
+      padding: const EdgeInsets.fromLTRB(18, 64, 18, 22),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const spacing = 8.0;
+          final itemWidth = (constraints.maxWidth - spacing * 2) / 3;
+
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: ThemeCatalog.themes.map((theme) {
+              final unlocked = appState.unlockedThemes.contains(theme.id);
+              final selected = appState.dailyTheme == theme.id;
+
+              return SizedBox(
+                width: itemWidth,
+                child: Semantics(
+                  button: unlocked,
+                  selected: selected,
+                  label: unlocked
+                      ? '${theme.name} theme${selected ? ', selected' : ''}'
+                      : '${theme.name} theme, locked',
+                  child: ForestPressBounce(
+                    enabled: unlocked,
+                    child: GestureDetector(
+                      onTap: unlocked
+                          ? () => appState.setDailyTheme(theme.id)
+                          : null,
+                      child: Container(
+                        height: 92,
+                        padding: EdgeInsets.all(selected ? 3 : 2),
+                        decoration: BoxDecoration(
+                          gradient: selected ? _titleGoldGradient : null,
+                          color: selected ? null : Colors.black54,
+                          borderRadius: BorderRadius.circular(9),
+                          border: selected
+                              ? null
+                              : Border.all(
+                                  color: const Color(0xFF68431E),
+                                  width: 2,
+                                ),
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Opacity(
+                                opacity: unlocked ? 1 : 0.3,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Image.asset(
+                                      theme.iconAssets.first,
+                                      width: 48,
+                                      height: 48,
+                                      fit: BoxFit.contain,
+                                      filterQuality: FilterQuality.none,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        theme.name.toUpperCase(),
+                                        maxLines: 1,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (selected)
+                              const Positioned(
+                                top: 2,
+                                right: 2,
+                                child: Icon(
+                                  Icons.check_circle,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ),
+                            if (!unlocked)
+                              Center(
+                                child: Image.asset(
+                                  _lockAsset,
+                                  width: 24,
+                                  height: 24,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        },
       ),
     );
   }
@@ -506,7 +791,7 @@ class _ProfilePicturesPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SectionPanel(
       title: 'PROFILE PICTURES',
-      padding: const EdgeInsets.fromLTRB(18, 92, 18, 22),
+      padding: const EdgeInsets.fromLTRB(18, 64, 18, 22),
       child: SizedBox(
         height: 360,
         child: Scrollbar(
@@ -521,50 +806,57 @@ class _ProfilePicturesPanel extends StatelessWidget {
                   asset,
                 );
 
-                return GestureDetector(
-                  onTap: unlocked
-                      ? () => appState.setProfilePicture(asset)
-                      : null,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      gradient: selected ? _shinyGoldGradient : null,
-                      color: selected ? null : const Color(0xFF1B1B1B),
-                      borderRadius: BorderRadius.circular(8),
-                      border: selected
-                          ? null
-                          : Border.all(
-                              color: const Color(0xFF63401F),
-                              width: 2,
+                return ForestPressBounce(
+                  enabled: unlocked,
+                  child: GestureDetector(
+                    onTap: unlocked
+                        ? () => appState.setProfilePicture(asset)
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        gradient: selected ? _titleGoldGradient : null,
+                        color: selected ? null : const Color(0xFF1B1B1B),
+                        borderRadius: BorderRadius.circular(8),
+                        border: selected
+                            ? null
+                            : Border.all(
+                                color: const Color(0xFF63401F),
+                                width: 2,
+                              ),
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: unlocked
+                                  ? const Color(0xFF222222)
+                                  : const Color(0xFF151515),
+                              borderRadius: BorderRadius.circular(5),
                             ),
-                    ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: unlocked
-                                ? const Color(0xFF222222)
-                                : const Color(0xFF151515),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Opacity(
-                            opacity: unlocked ? 1 : 0.25,
-                            child: Padding(
-                              padding: const EdgeInsets.all(5),
-                              child: Image.asset(asset),
-                            ),
-                          ),
-                        ),
-                        if (!unlocked)
-                          Center(
-                            child: Image.asset(
-                              _lockAsset,
-                              width: 26,
-                              height: 26,
+                            child: Opacity(
+                              opacity: unlocked ? 1 : 0.25,
+                              child: Padding(
+                                padding: const EdgeInsets.all(1),
+                                child: Image.asset(
+                                  asset,
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.none,
+                                ),
+                              ),
                             ),
                           ),
-                      ],
+                          if (!unlocked)
+                            Center(
+                              child: Image.asset(
+                                _lockAsset,
+                                width: 26,
+                                height: 26,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -577,7 +869,7 @@ class _ProfilePicturesPanel extends StatelessWidget {
   }
 }
 
-/// Active title summary followed by categorized title choices.
+/// Categorized player-title choices.
 class _TitlePanel extends StatelessWidget {
   const _TitlePanel({required this.appState});
 
@@ -585,61 +877,12 @@ class _TitlePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = TitleCatalog.byName(appState.playerTitle);
-
     return _SectionPanel(
       title: 'PROFILE TITLE',
-      padding: const EdgeInsets.fromLTRB(18, 92, 18, 22),
+      padding: const EdgeInsets.fromLTRB(18, 64, 18, 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              gradient: _shinyGoldGradient,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF123D6D),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Image.asset(
-                    'lib/assets/icons/star.png',
-                    width: 42,
-                    height: 42,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          selected.name.toUpperCase(),
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            shadows: [_pixelShadow],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          selected.unlockText,
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
           SizedBox(
             height: 280,
             child: Scrollbar(
@@ -713,50 +956,55 @@ class _TitleOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(selected ? 2 : 0),
-        decoration: BoxDecoration(
-          gradient: selected ? _shinyGoldGradient : null,
-          borderRadius: BorderRadius.circular(10),
-        ),
+    return ForestPressBounce(
+      enabled: onTap != null,
+      child: GestureDetector(
+        onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          padding: EdgeInsets.all(selected ? 2 : 0),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF123D6D) : const Color(0xFF1B1B1B),
-            borderRadius: BorderRadius.circular(8),
-            border: selected
-                ? null
-                : Border.all(color: const Color(0xFF5B3518), width: 2),
+            gradient: selected ? _titleGoldGradient : null,
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Row(
-            children: [
-              if (locked) ...[
-                Image.asset(_lockAsset, width: 20, height: 20),
-                const SizedBox(width: 8),
-              ] else ...[
-                Image.asset(
-                  'lib/assets/icons/trophy.png',
-                  width: 20,
-                  height: 20,
-                ),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: Text(
-                  title.toUpperCase(),
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: locked ? const Color(0xFFB3946D) : _panelText,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected
+                  ? const Color(0xFF123D6D)
+                  : const Color(0xFF1B1B1B),
+              borderRadius: BorderRadius.circular(8),
+              border: selected
+                  ? null
+                  : Border.all(color: const Color(0xFF5B3518), width: 2),
+            ),
+            child: Row(
+              children: [
+                if (locked) ...[
+                  Image.asset(_lockAsset, width: 20, height: 20),
+                  const SizedBox(width: 8),
+                ] else ...[
+                  Image.asset(
+                    'lib/assets/icons/trophy.png',
+                    width: 20,
+                    height: 20,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    title.toUpperCase(),
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: locked ? const Color(0xFFB3946D) : _panelText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-              if (selected)
-                const Icon(Icons.check, color: Color(0xFF4BE34B), size: 22),
-            ],
+                if (selected)
+                  const Icon(Icons.check, color: Color(0xFF4BE34B), size: 22),
+              ],
+            ),
           ),
         ),
       ),
@@ -775,14 +1023,14 @@ class _StatsStrip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        gradient: _shinyGoldGradient,
+        gradient: _titleGoldGradient,
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
           BoxShadow(color: Colors.black45, offset: Offset(0, 3), blurRadius: 0),
         ],
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         decoration: BoxDecoration(
           color: const Color(0xFF123D6D).withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(9),
@@ -827,7 +1075,7 @@ class _StatDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 1,
-      height: 54,
+      height: 44,
       color: const Color(0xFF75A9CF).withValues(alpha: 0.75),
     );
   }
@@ -848,30 +1096,35 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 72,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.asset(icon, width: 26, height: 26),
-          const SizedBox(width: 8),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: _panelText,
-                  fontSize: 20,
-                  fontFamily: 'Silkscreen',
-                  fontWeight: FontWeight.normal,
-                  shadows: [_pixelShadow],
+      height: 60,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(icon, width: 23, height: 23),
+            const SizedBox(width: 6),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: _panelText,
+                    fontSize: 18,
+                    fontFamily: 'Silkscreen',
+                    fontWeight: FontWeight.normal,
+                    shadows: [_pixelShadow],
+                  ),
                 ),
-              ),
-              Text(label, style: const TextStyle(color: _gold, fontSize: 10)),
-            ],
-          ),
-        ],
+                Text(label, style: const TextStyle(color: _gold, fontSize: 9)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -909,9 +1162,12 @@ class _AuthPanel extends StatelessWidget {
           const SizedBox(height: 8),
         ],
         if (isLoggedIn)
-          ElevatedButton(
-            onPressed: isWorking ? null : onSignOut,
-            child: Text(isWorking ? 'Please wait...' : 'Sign out'),
+          ForestPressBounce(
+            enabled: !isWorking,
+            child: ElevatedButton(
+              onPressed: isWorking ? null : onSignOut,
+              child: Text(isWorking ? 'Please wait...' : 'Sign out'),
+            ),
           )
         else
           Padding(
@@ -949,68 +1205,71 @@ class _GoogleMaterialButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll(Size.fromHeight(40)),
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 12),
-        ),
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.disabled)
-              ? const Color(0x61131314)
-              : const Color(0xFF131314);
-        }),
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.disabled)
-              ? const Color(0x61E3E3E3)
-              : const Color(0xFFE3E3E3);
-        }),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.pressed) ||
-              states.contains(WidgetState.focused)) {
-            return Colors.white.withValues(alpha: 0.12);
-          }
-          if (states.contains(WidgetState.hovered)) {
-            return Colors.white.withValues(alpha: 0.08);
-          }
-          return null;
-        }),
-        side: WidgetStateProperty.resolveWith((states) {
-          return BorderSide(
-            color: states.contains(WidgetState.disabled)
-                ? const Color(0x1F8E918F)
-                : const Color(0xFF8E918F),
-          );
-        }),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        ),
-        textStyle: const WidgetStatePropertyAll(
-          TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            letterSpacing: .25,
+    return ForestPressBounce(
+      enabled: enabled,
+      child: OutlinedButton(
+        style: ButtonStyle(
+          minimumSize: const WidgetStatePropertyAll(Size.fromHeight(40)),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 12),
           ),
-        ),
-        elevation: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.hovered) ? 2 : 0;
-        }),
-      ),
-      onPressed: enabled ? onPressed : null,
-      child: Row(
-        children: [
-          Opacity(opacity: enabled ? 1 : 0.38, child: const _GoogleLogo()),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.disabled)
+                ? const Color(0x61131314)
+                : const Color(0xFF131314);
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.disabled)
+                ? const Color(0x61E3E3E3)
+                : const Color(0xFFE3E3E3);
+          }),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed) ||
+                states.contains(WidgetState.focused)) {
+              return Colors.white.withValues(alpha: 0.12);
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return Colors.white.withValues(alpha: 0.08);
+            }
+            return null;
+          }),
+          side: WidgetStateProperty.resolveWith((states) {
+            return BorderSide(
+              color: states.contains(WidgetState.disabled)
+                  ? const Color(0x1F8E918F)
+                  : const Color(0xFF8E918F),
+            );
+          }),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          ),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              letterSpacing: .25,
             ),
           ),
-          const SizedBox(width: 30),
-        ],
+          elevation: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.hovered) ? 2 : 0;
+          }),
+        ),
+        onPressed: enabled ? onPressed : null,
+        child: Row(
+          children: [
+            Opacity(opacity: enabled ? 1 : 0.38, child: const _GoogleLogo()),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(width: 30),
+          ],
+        ),
       ),
     );
   }
@@ -1090,14 +1349,12 @@ class _GoogleLogoPainter extends CustomPainter {
   bool shouldRepaint(_GoogleLogoPainter oldDelegate) => false;
 }
 
-/// Dark translucent section body with an overlapping wood title plaque.
-///
-/// The brown fill stays translucent so the scenic background remains visible.
+/// Translucent section body with a black outline and overlapping title plaque.
 class _SectionPanel extends StatelessWidget {
   const _SectionPanel({
     required this.title,
     required this.child,
-    this.padding = const EdgeInsets.fromLTRB(18, 92, 18, 22),
+    this.padding = const EdgeInsets.fromLTRB(18, 64, 18, 22),
   });
 
   final String title;
@@ -1107,29 +1364,21 @@ class _SectionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 17),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 20),
-            child: ForestWoodBorder(
-              child: Container(
-                width: double.infinity,
-                padding: padding,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF30190B).withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black54,
-                      offset: Offset(0, 5),
-                      blurRadius: 0,
-                    ),
-                  ],
-                ),
-                child: child,
+            child: Container(
+              width: double.infinity,
+              padding: padding.subtract(const EdgeInsets.only(top: 20)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A4864).withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: forestSectionBorder, width: 3),
               ),
+              child: child,
             ),
           ),
           Positioned(
@@ -1147,16 +1396,19 @@ class _SectionPanel extends StatelessWidget {
                 child: Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontFamily: 'Silkscreen',
-                        fontWeight: FontWeight.bold,
-                        shadows: [_pixelShadow],
+                    child: Transform.translate(
+                      offset: const Offset(0, 5),
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontFamily: 'Silkscreen',
+                          fontWeight: FontWeight.bold,
+                          shadows: [_pixelShadow],
+                        ),
                       ),
                     ),
                   ),

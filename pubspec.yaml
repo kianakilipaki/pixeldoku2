@@ -16,6 +16,8 @@ dependencies:
   shared_preferences: ^2.5.5
   sign_in_with_apple: ^8.0.0
   audioplayers: ^6.5.1
+  package_info_plus: ^10.2.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -36,10 +38,12 @@ flutter:
     - lib/assets/
     - lib/assets/fonts/
     - lib/assets/icons/
+    - lib/assets/wood/
     - lib/assets/sfx/
     - lib/assets/themes/birds/
     - lib/assets/themes/bugs/
     - lib/assets/themes/cats/
     - lib/assets/themes/dogs/
     - lib/assets/themes/fish/
+    - lib/assets/themes/forest/
     - lib/assets/themes/swamp/

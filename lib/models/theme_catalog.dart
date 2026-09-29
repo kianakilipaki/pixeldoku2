@@ -175,7 +175,7 @@ class ThemeCatalog {
       id: 'swamp',
       name: 'Swamp',
       unlockLevel: 51,
-      backgroundAsset: 'lib/assets/themes/swamp/swamp.png',
+      backgroundAsset: 'lib/assets/themes/swamp/swamp-bg.png',
       musicAsset:
           'lib/assets/themes/swamp/hip-hoprock-bayou-cheifin-blues-191536.mp3',
       iconAssets: [
@@ -201,6 +201,35 @@ class ThemeCatalog {
         'lib/assets/themes/swamp/amphibian_9.png',
       ],
     ),
+    PixelDokuTheme(
+      id: 'forest',
+      name: 'Forest',
+      unlockLevel: 61,
+      backgroundAsset: 'lib/assets/themes/forest/forest-bg.png',
+      musicAsset: 'lib/assets/themes/birds/forest-guitar-lofi-161108.mp3',
+      iconAssets: [
+        'lib/assets/themes/forest/woods_1.png',
+        'lib/assets/themes/forest/woods_2.png',
+        'lib/assets/themes/forest/woods_3.png',
+        'lib/assets/themes/forest/woods_4.png',
+        'lib/assets/themes/forest/woods_5.png',
+        'lib/assets/themes/forest/woods_6.png',
+        'lib/assets/themes/forest/woods_7.png',
+        'lib/assets/themes/forest/woods_8.png',
+        'lib/assets/themes/forest/woods_9.png',
+      ],
+      profileAssets: [
+        'lib/assets/themes/forest/woods_1.png',
+        'lib/assets/themes/forest/woods_2.png',
+        'lib/assets/themes/forest/woods_3.png',
+        'lib/assets/themes/forest/woods_4.png',
+        'lib/assets/themes/forest/woods_5.png',
+        'lib/assets/themes/forest/woods_6.png',
+        'lib/assets/themes/forest/woods_7.png',
+        'lib/assets/themes/forest/woods_8.png',
+        'lib/assets/themes/forest/woods_9.png',
+      ],
+    ),
   ];
 
   static List<String> get allProfileAssets {
@@ -214,6 +243,16 @@ class ThemeCatalog {
       (theme) => theme.id == id,
       orElse: () => themes.first,
     );
+  }
+
+  /// Theme assigned to a standard level based on its unlock tier.
+  static PixelDokuTheme forLevel(int level) {
+    var result = themes.first;
+    for (final theme in themes) {
+      if (level < theme.unlockLevel) break;
+      result = theme;
+    }
+    return result;
   }
 
   static List<String> unlockedThemeIdsForLevel(int level) {

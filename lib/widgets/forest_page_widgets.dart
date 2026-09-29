@@ -1,24 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 const forestGold = Color(0xFFEEC027);
 const forestPanelBlue = Color(0xFF123D6D);
 const forestPanelText = Color(0xFFFFE3A0);
+const forestSectionBorder = Color(0xFFB3682D);
 
-const forestShinyGold = LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
+/// Plays a subtle but noticeable tactile response and respects device settings.
+void forestTapHaptic() {
+  unawaited(HapticFeedback.lightImpact());
+}
+
+const forestTitleGoldGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
   colors: [
-    Color(0xFFFFF1A8),
-    Color(0xFFFFCB36),
-    Color(0xFF9B5A08),
-    Color(0xFFFFDF62),
-    Color(0xFFB36A0A),
+    Color(0xFFFFE75A),
+    Color(0xFFFFD12A),
+    Color(0xFFFFA40D),
+    Color(0xFFE87505),
   ],
-  stops: [0, 0.2, 0.48, 0.72, 1],
+  stops: [0, 0.32, 0.68, 1],
 );
 
-const _headerPanel = 'lib/assets/wood-panel-sm-lvs.png';
-const _woodPanelLong = 'lib/assets/wood-panel-long.png';
+const _headerPanel = 'lib/assets/wood/wood-panel-sm-lvs.png';
+const _woodPanelLong = 'lib/assets/wood/wood-panel-long.png';
 
 const forestPixelShadow = Shadow(
   offset: Offset(2, 2),
@@ -110,6 +118,62 @@ class _ForestWoodBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ForestWoodBorderPainter oldDelegate) {
     return oldDelegate.radius != radius;
+  }
+}
+
+/// Keep page artwork and controls above the phone's navigation area.
+class ForestNavigationSafeArea extends StatelessWidget {
+  const ForestNavigationSafeArea({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: SafeArea(
+        top: false,
+        left: false,
+        right: false,
+        maintainBottomViewPadding: true,
+        // The outer shell owns this inset; page SafeAreas must not add it twice.
+        child: MediaQuery.removeViewPadding(
+          context: context,
+          removeBottom: true,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Preserve readable controls on short phones, scrolling only when necessary.
+class ForestResponsiveViewport extends StatelessWidget {
+  const ForestResponsiveViewport({
+    super.key,
+    required this.minimumHeight,
+    required this.child,
+  });
+
+  final double minimumHeight;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight < minimumHeight
+            ? minimumHeight
+            : constraints.maxHeight;
+        return SingleChildScrollView(
+          child: SizedBox(
+            width: constraints.maxWidth,
+            height: height,
+            child: child,
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -255,6 +319,11 @@ class _ForestTitlePlaque extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final titleFontSize = switch (title.toUpperCase()) {
+      'LEADERBOARD' || 'COLLECTIONS' => 20.0,
+      _ => 24.0,
+    };
+
     return Container(
       height: 72,
       decoration: const BoxDecoration(
@@ -266,17 +335,20 @@ class _ForestTitlePlaque extends StatelessWidget {
       alignment: Alignment.center,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            title.toUpperCase(),
-            maxLines: 1,
-            style: const TextStyle(
-              color: forestPanelText,
-              fontSize: 24,
-              fontFamily: 'Silkscreen',
-              fontWeight: FontWeight.bold,
-              shadows: [forestPixelShadow],
+        child: Transform.translate(
+          offset: const Offset(0, 2),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              title.toUpperCase(),
+              maxLines: 1,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: titleFontSize,
+                fontFamily: 'Silkscreen',
+                fontWeight: FontWeight.bold,
+                shadows: [forestPixelShadow],
+              ),
             ),
           ),
         ),
@@ -285,13 +357,13 @@ class _ForestTitlePlaque extends StatelessWidget {
   }
 }
 
-/// Translucent brown content area with a small wood title plaque.
+/// Translucent blue content area with a warm border and wood title plaque.
 class ForestSection extends StatelessWidget {
   const ForestSection({
     super.key,
     required this.title,
     required this.child,
-    this.padding = const EdgeInsets.fromLTRB(14, 92, 14, 14),
+    this.padding = const EdgeInsets.fromLTRB(14, 72, 14, 14),
   });
 
   final String title;
@@ -305,19 +377,15 @@ class ForestSection extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 18),
-          child: ForestWoodBorder(
-            child: Container(
-              width: double.infinity,
-              padding: padding,
-              decoration: BoxDecoration(
-                color: const Color(0xFF30190B).withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black54, offset: Offset(0, 4)),
-                ],
-              ),
-              child: child,
+          child: Container(
+            width: double.infinity,
+            padding: padding.subtract(const EdgeInsets.only(top: 20)),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A4864).withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: forestSectionBorder, width: 3),
             ),
+            child: child,
           ),
         ),
         Positioned(
@@ -336,17 +404,20 @@ class ForestSection extends StatelessWidget {
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 38),
-                  child: Text(
-                    title.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontFamily: 'Silkscreen',
-                      fontWeight: FontWeight.bold,
-                      shadows: [forestPixelShadow],
+                  child: Transform.translate(
+                    offset: const Offset(0, 5),
+                    child: Text(
+                      title.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontFamily: 'Silkscreen',
+                        fontWeight: FontWeight.bold,
+                        shadows: [forestPixelShadow],
+                      ),
                     ),
                   ),
                 ),
@@ -378,58 +449,116 @@ class ForestListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: const Color(0xFF111820).withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: onTap,
+    return ForestPressBounce(
+      enabled: onTap != null,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Material(
+          color: const Color(0xFF111820).withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF68431E), width: 2),
-            ),
-            child: Row(
-              children: [
-                if (leading != null) ...[
-                  SizedBox(width: 40, child: Center(child: leading)),
-                  const SizedBox(width: 10),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title.toUpperCase(),
-                        style: const TextStyle(
-                          color: forestPanelText,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
+          child: InkWell(
+            onTap: onTap,
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF68431E), width: 2),
+              ),
+              child: Row(
+                children: [
+                  if (leading != null) ...[
+                    SizedBox(width: 40, child: Center(child: leading)),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          subtitle!,
+                          title.toUpperCase(),
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontFamily: 'Fira Sans',
-                            fontSize: 13,
-                            height: 1.25,
+                            color: forestPanelText,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
                         ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontFamily: 'Fira Sans',
+                              fontSize: 13,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
-              ],
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing!,
+                  ],
+                ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Gives tappable controls a subtle, quick press-and-release bounce without
+/// taking over their gestures or changing their layout.
+class ForestPressBounce extends StatefulWidget {
+  const ForestPressBounce({
+    super.key,
+    required this.child,
+    this.enabled = true,
+    this.pressedScale = 0.95,
+  });
+
+  final Widget child;
+  final bool enabled;
+  final double pressedScale;
+
+  @override
+  State<ForestPressBounce> createState() => _ForestPressBounceState();
+}
+
+class _ForestPressBounceState extends State<ForestPressBounce> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (!widget.enabled || _pressed == value) return;
+    if (value) forestTapHaptic();
+    setState(() => _pressed = value);
+  }
+
+  @override
+  void didUpdateWidget(covariant ForestPressBounce oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && _pressed) _pressed = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: widget.enabled ? (_) => _setPressed(true) : null,
+      onPointerUp: widget.enabled ? (_) => _setPressed(false) : null,
+      onPointerCancel: widget.enabled ? (_) => _setPressed(false) : null,
+      child: AnimatedScale(
+        scale: _pressed ? widget.pressedScale : 1,
+        duration: Duration(milliseconds: _pressed ? 70 : 160),
+        curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
+        child: widget.child,
       ),
     );
   }
@@ -443,20 +572,22 @@ class ForestIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: forestPanelBlue,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: forestGold, width: 2),
-          boxShadow: const [
-            BoxShadow(color: Colors.black54, offset: Offset(0, 3)),
-          ],
-        ),
-        child: Icon(icon, color: Colors.white, size: 27),
+    return ForestPressBounce(
+      child: IconButton(
+        onPressed: onTap,
+        tooltip: 'Back',
+        iconSize: 32,
+        color: forestSectionBorder,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+        icon: icon == Icons.arrow_back
+            ? Image.asset(
+                'lib/assets/icons/backArrow.png',
+                width: 32,
+                height: 32,
+                filterQuality: FilterQuality.none,
+              )
+            : Icon(icon),
       ),
     );
   }
@@ -468,26 +599,37 @@ class ForestButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.danger = false,
+    this.fontSize,
+    this.backgroundColor,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool danger;
+  final double? fontSize;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size.fromHeight(50),
-        backgroundColor: danger ? const Color(0xFF9D2C1B) : forestPanelBlue,
-        foregroundColor: forestPanelText,
-        disabledBackgroundColor: Colors.black45,
-        side: BorderSide(color: danger ? Colors.redAccent : forestGold),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+    return ForestPressBounce(
+      enabled: onPressed != null,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size.fromHeight(50),
+          backgroundColor:
+              backgroundColor ??
+              (danger ? const Color(0xFF9D2C1B) : forestPanelBlue),
+          foregroundColor: forestPanelText,
+          disabledBackgroundColor: Colors.black45,
+          side: BorderSide(
+            color: danger ? Colors.redAccent : forestSectionBorder,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: fontSize),
+        ),
+        onPressed: onPressed,
+        child: Text(label.toUpperCase()),
       ),
-      onPressed: onPressed,
-      child: Text(label.toUpperCase()),
     );
   }
 }

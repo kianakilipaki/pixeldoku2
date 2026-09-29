@@ -75,7 +75,131 @@ class DailyLeaderboardEntry {
   final String? profilePicture;
 }
 
+class GlobalLeaderboardEntry {
+  const GlobalLeaderboardEntry({
+    required this.userId,
+    required this.name,
+    required this.level,
+    required this.bestTimeSeconds,
+    this.profilePicture,
+    this.profilePictureBgColor = 0xFFEEC027,
+    this.playerTitle = 'New Explorer',
+    this.score = 0,
+  });
+
+  final String userId;
+  final String name;
+  final int level;
+  final int bestTimeSeconds;
+  final String? profilePicture;
+  final int profilePictureBgColor;
+  final String playerTitle;
+  final int score;
+}
+
+class UsernameSaveException implements Exception {
+  const UsernameSaveException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class StorageService {
+  Future<String> saveUniquePlayerName(String requestedName) async {
+    final client = supabase;
+    if (client == null || client.auth.currentUser == null) {
+      throw const UsernameSaveException(
+        'Connect to the internet to save a unique username.',
+      );
+    }
+
+    try {
+      final result = await client.rpc(
+        'set_player_name',
+        params: {'p_name': requestedName},
+      );
+      return result.toString();
+    } catch (error, stackTrace) {
+      final details = error.toString();
+      AppLogger.error('Unique username save failed', error, stackTrace);
+      if (details.contains('USERNAME_TAKEN')) {
+        throw const UsernameSaveException('That username is already in use.');
+      }
+      if (details.contains('USERNAME_LENGTH')) {
+        throw const UsernameSaveException(
+          'Username must be between 3 and 20 characters.',
+        );
+      }
+      if (details.contains('USERNAME_CHARACTERS')) {
+        throw const UsernameSaveException(
+          'That username contains unsupported characters.',
+        );
+      }
+      if (details.contains('USERNAME_AUTH_REQUIRED')) {
+        throw const UsernameSaveException(
+          'Your player profile is not ready. Please try again.',
+        );
+      }
+      throw const UsernameSaveException(
+        'Could not verify that username. Please try again.',
+      );
+    }
+  }
+
+  Future<List<GlobalLeaderboardEntry>> loadCompetition(String period) async {
+    final client = supabase;
+    if (client == null) {
+      throw StateError('Online competitions require a connection.');
+    }
+    final rows = await client.rpc(
+      'get_competition_leaderboard',
+      params: {'p_period': period},
+    );
+    return (rows as List)
+        .map(
+          (row) => GlobalLeaderboardEntry(
+            userId: row['user_id'].toString(),
+            name: row['player_name'] ?? 'Player',
+            level: (row['player_level'] as num).toInt(),
+            bestTimeSeconds: (row['best_time_seconds'] as num).toInt(),
+            score: (row['score'] as num).toInt(),
+            profilePicture: row['profile_picture'],
+            profilePictureBgColor: (row['profile_picture_bg_color'] as num)
+                .toInt(),
+            playerTitle: row['player_title'] ?? 'New Explorer',
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> submitDailyScore(
+    String dateKey,
+    int seconds,
+    int hints,
+    int mistakes,
+  ) async {
+    final client = supabase;
+    if (client == null || client.auth.currentUser == null) return;
+    await client.rpc(
+      'submit_daily_score',
+      params: {
+        'p_puzzle_date': _sqlDate(dateKey),
+        'p_elapsed_seconds': seconds,
+        'p_hints': hints,
+        'p_hearts_lost': mistakes,
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> competitionAwards() async {
+    final client = supabase;
+    if (client == null || client.auth.currentUser == null) return [];
+    final rows = await client.rpc('get_competition_awards');
+    return (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+  }
+
   static const String savedGameKey = 'saved_game';
   static const String dailyGameKey = 'saved_daily_game';
   static const String localProgressKey = 'local_user_progress';
@@ -190,6 +314,18 @@ class StorageService {
     AppLogger.log('StorageService.updateUserData complete property=$property');
   }
 
+  /// Replaces the complete cloud profile after a player's first account sync.
+  Future<void> saveUserProgress(String userId, UserProgress progress) async {
+    AppLogger.log('StorageService.saveUserProgress start user=$userId');
+    final client = supabase;
+    if (client == null) {
+      throw StateError('Supabase is unavailable');
+    }
+
+    await client.from('users').update(progress.toJson()).eq('id', userId);
+    AppLogger.log('StorageService.saveUserProgress complete user=$userId');
+  }
+
   /// Loads the fastest submitted time per player for one daily puzzle.
   Future<List<DailyLeaderboardEntry>> loadDailyLeaderboard(
     String dateKey,
@@ -242,6 +378,91 @@ class StorageService {
         'p_elapsed_seconds': elapsedSeconds,
       },
     );
+  }
+
+  /// Loads this month's rankings using each player's fastest Daily time.
+  Future<List<GlobalLeaderboardEntry>> loadGlobalLeaderboard() async {
+    final client = supabase;
+    if (client == null) return const [];
+
+    try {
+      final rows = await client.rpc('get_global_leaderboard');
+      if (rows is List) return _globalLeaderboardEntries(rows);
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Dedicated global leaderboard unavailable; using profile statistics',
+        error,
+        stackTrace,
+      );
+    }
+
+    final rows = await client
+        .from('users')
+        .select(
+          'id, name, profile_picture, profile_picture_bg_color, '
+          'player_title, current_level, statistics',
+        );
+    final legacyRows = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      final statistics = row['statistics'];
+      if (statistics is! Map) continue;
+      final results = statistics['daily_results'];
+      if (results is! Map) continue;
+
+      final now = DateTime.now().toUtc();
+      final monthPrefix = '${now.year}${now.month.toString().padLeft(2, '0')}';
+      final times = results.entries
+          .where((entry) => entry.key.toString().startsWith(monthPrefix))
+          .map((entry) => _intValue(entry.value, 0))
+          .where((value) => value > 0)
+          .toList();
+      if (times.isEmpty) continue;
+      times.sort();
+
+      legacyRows.add({
+        'user_id': row['id'],
+        'player_name': row['name'],
+        'profile_picture': row['profile_picture'],
+        'profile_picture_bg_color': row['profile_picture_bg_color'],
+        'player_title': row['player_title'],
+        'player_level': row['current_level'],
+        'best_time_seconds': times.first,
+      });
+    }
+    return _globalLeaderboardEntries(legacyRows);
+  }
+
+  static List<GlobalLeaderboardEntry> _globalLeaderboardEntries(List rows) {
+    final entries = <GlobalLeaderboardEntry>[];
+    for (final row in rows) {
+      if (row is! Map) continue;
+      final bestTime = _intValue(row['best_time_seconds'], 0);
+      if (bestTime <= 0) continue;
+
+      entries.add(
+        GlobalLeaderboardEntry(
+          userId: row['user_id']?.toString() ?? '',
+          name: row['player_name']?.toString().trim().isNotEmpty == true
+              ? row['player_name'].toString()
+              : 'Player',
+          level: _intValue(row['player_level'], 1).clamp(1, 999999),
+          bestTimeSeconds: bestTime,
+          profilePicture: row['profile_picture']?.toString(),
+          profilePictureBgColor: _intValue(
+            row['profile_picture_bg_color'],
+            0xFFEEC027,
+          ),
+          playerTitle: row['player_title']?.toString().trim().isNotEmpty == true
+              ? row['player_title'].toString()
+              : 'New Explorer',
+        ),
+      );
+    }
+    entries.sort((a, b) {
+      final timeComparison = a.bestTimeSeconds.compareTo(b.bestTimeSeconds);
+      return timeComparison != 0 ? timeComparison : b.level.compareTo(a.level);
+    });
+    return entries.take(25).toList(growable: false);
   }
 
   static List<DailyLeaderboardEntry> _leaderboardEntries(List rows) {

@@ -5,8 +5,10 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:pixeldoku/features/home/home_page.dart';
 import 'package:pixeldoku/core/utils/app_logger.dart';
+import 'package:pixeldoku/services/purchase_service.dart';
 import 'package:pixeldoku/state/app_state.dart';
 import 'package:pixeldoku/state/game_state.dart';
+import 'package:pixeldoku/widgets/forest_page_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,6 +21,7 @@ Future<void> main() async {
       AppLogger.log('main start');
       WidgetsFlutterBinding.ensureInitialized();
       AppLogger.log('flutter bindings initialized');
+      await PurchaseService.initialize();
 
       FlutterError.onError = (details) {
         AppLogger.error(
@@ -125,14 +128,32 @@ class MainApp extends StatelessWidget {
     return MaterialApp(
       title: 'PixelDoku',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) =>
+          ForestNavigationSafeArea(child: child ?? const SizedBox.shrink()),
       theme: ThemeData(
         fontFamily: 'Silkscreen',
         textTheme: textTheme,
+        splashFactory: NoSplash.splashFactory,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
         elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(textStyle: _prominentLabel),
+          style: ElevatedButton.styleFrom(
+            textStyle: _prominentLabel,
+            overlayColor: Colors.transparent,
+          ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(textStyle: _prominentLabel),
+          style: OutlinedButton.styleFrom(
+            textStyle: _prominentLabel,
+            overlayColor: Colors.transparent,
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(overlayColor: Colors.transparent),
+        ),
+        iconButtonTheme: IconButtonThemeData(
+          style: IconButton.styleFrom(overlayColor: Colors.transparent),
         ),
       ),
       home: const HomePage(),

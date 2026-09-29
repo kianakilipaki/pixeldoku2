@@ -2,13 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pixeldoku/core/utils/sudoku_generator.dart';
 
 void main() {
-  test('daily seed creates the same hard puzzle for every user', () {
+  test('daily seed creates the same harder puzzle for every user', () {
     final first = SudokuGenerator.generateSudoku(
-      difficulty: 'Hard',
+      difficulty: 'Daily Hard',
       seed: 20260831,
     );
     final second = SudokuGenerator.generateSudoku(
-      difficulty: 'Hard',
+      difficulty: 'Daily Hard',
       seed: 20260831,
     );
 
@@ -16,7 +16,7 @@ void main() {
     expect(second['solution'], first['solution']);
     expect(
       first['puzzle']!.expand((row) => row).where((cell) => cell == 0).length,
-      45,
+      54,
     );
     for (var row = 0; row < 9; row++) {
       for (var column = 0; column < 9; column++) {
@@ -28,11 +28,11 @@ void main() {
 
   test('a different daily seed changes the puzzle', () {
     final first = SudokuGenerator.generateSudoku(
-      difficulty: 'Hard',
+      difficulty: 'Daily Hard',
       seed: 20260831,
     );
     final nextDay = SudokuGenerator.generateSudoku(
-      difficulty: 'Hard',
+      difficulty: 'Daily Hard',
       seed: 20260901,
     );
 

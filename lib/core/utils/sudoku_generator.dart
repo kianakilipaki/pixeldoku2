@@ -11,6 +11,14 @@ class SudokuGenerator {
     int? seed,
   }) {
     final random = seed == null ? _random : Random(seed);
+    if (difficulty == 'Daily Hard') {
+      return _generateTemplatePuzzle(
+        random: random,
+        basePuzzle: _expertPuzzle,
+        baseSolution: _expertSolution,
+        targetBlanks: 54,
+      );
+    }
     if (difficulty.startsWith('Expert')) {
       return _generateTemplatePuzzle(
         random: random,

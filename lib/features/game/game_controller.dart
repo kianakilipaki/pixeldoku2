@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:pixeldoku/services/ads_service.dart';
+import 'package:pixeldoku/models/competition.dart';
+import 'package:pixeldoku/models/theme_catalog.dart';
 import 'package:pixeldoku/services/auth_service.dart';
 import 'package:pixeldoku/services/storage_service.dart';
 import 'package:pixeldoku/state/app_state.dart';
@@ -18,6 +19,7 @@ class GameController {
   late GameState _gameState;
   AppState? _appState;
   bool _completionHandled = false;
+  bool _failureHandled = false;
 
   // -----------------------------
   // SET GAME STATE
@@ -65,6 +67,8 @@ class GameController {
   void selectCell(int row, int col) {
     selectedRow = row;
     selectedCol = col;
+    final cellValue = _gameState.currentBoard?[row][col] ?? 0;
+    selectedAnimal = cellValue > 0 ? cellValue : -1;
   }
 
   // -----------------------------
@@ -137,36 +141,48 @@ class GameController {
         appState.hasCompletedDaily(_gameState.dailyDateKey!);
     final reward = dailyAlreadyCompleted
         ? 0
-        : appState.coinRewardForLevel(
-                difficulty: _gameState.difficulty,
-                reduced: _gameState.completedAfterRetry,
-              ) +
-              (_gameState.isDaily ? AppState.dailyCoinBonus : 0);
+        : RewardRules.coins(
+            heartsLost: _gameState.scoreMistakes,
+            daily: _gameState.isDaily,
+          );
     _gameState.completionReward = reward;
 
     if (reward > 0) await appState.addCoins(reward);
     await appState.recordLevelCompleted(
       difficulty: _gameState.difficulty,
       reducedReward: _gameState.completedAfterRetry,
-      mistakes: _gameState.mistakes,
+      mistakes: _gameState.scoreMistakes,
       hintsUsed: _gameState.hintsUsedThisLevel,
       elapsedSeconds: _gameState.elapsedSeconds,
+      themeId: _gameState.isDaily
+          ? appState.dailyTheme
+          : ThemeCatalog.forLevel(_gameState.currentLevel).id,
       isDaily: _gameState.isDaily,
       dailyDateKey: _gameState.dailyDateKey,
     );
     if (_gameState.isDaily && _gameState.dailyDateKey != null) {
-      await appState.submitDailyTime(
+      await appState.submitDailyScore(
         _gameState.dailyDateKey!,
         _gameState.elapsedSeconds,
+        _gameState.hintsUsedThisLevel,
+        _gameState.scoreMistakes,
       );
     }
     if (!_gameState.isDaily) await appState.setGameProgress({});
 
-    AdsService.showInterstitial();
-
     return appState.unlockedTitleNames
         .where((title) => !unlockedBefore.contains(title))
         .toList(growable: false);
+  }
+
+  Future<void> recordDailyFailure() async {
+    final appState = _appState;
+    if (_failureHandled || !_gameState.gameOver) return;
+    _failureHandled = true;
+
+    if (_gameState.isDaily && _gameState.dailyDateKey != null) {
+      await appState?.recordDailyFailure(_gameState.dailyDateKey!);
+    }
   }
 
   Future<List<String>> advanceCompletedLevel() async {

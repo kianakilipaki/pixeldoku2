@@ -46,7 +46,10 @@ class PlayerTitle {
     return switch (ruleType) {
       TitleRuleType.always => true,
       TitleRuleType.themeUnlocked =>
-        themeId != null && appState.unlockedThemes.contains(themeId),
+        themeId != null &&
+            appState.unlockedThemes.contains(themeId) &&
+            appState.completedPuzzlesForTheme(themeId!) >=
+                TitleCatalog.themeTitleCompletionRequirement(this),
       TitleRuleType.level => appState.currentLevel >= requiredLevel,
       TitleRuleType.statistic => _statValue(appState) >= statValue,
       TitleRuleType.allThemes =>
@@ -80,6 +83,14 @@ class TitleCatalog {
   static const defaultTitle = 'New Explorer';
 
   static const titles = <PlayerTitle>[
+    PlayerTitle(
+      name: 'Monthly Champion',
+      category: TitleCategory.prestige,
+      unlockText: 'Win a monthly competition',
+      ruleType: TitleRuleType.statistic,
+      statKey: 'monthly_championships',
+      statValue: 1,
+    ),
     PlayerTitle(
       name: 'New Explorer',
       category: TitleCategory.level,
@@ -653,6 +664,23 @@ class TitleCatalog {
 
   static List<PlayerTitle> byCategory(TitleCategory category) {
     return titles.where((title) => title.category == category).toList();
+  }
+
+  /// The first title arrives with its theme; each later title needs one more
+  /// completed puzzle using that theme.
+  static int themeTitleCompletionRequirement(PlayerTitle title) {
+    if (title.category != TitleCategory.theme || title.themeId == null) {
+      return 0;
+    }
+    final themeTitles = titles
+        .where(
+          (candidate) =>
+              candidate.category == TitleCategory.theme &&
+              candidate.themeId == title.themeId,
+        )
+        .toList(growable: false);
+    final index = themeTitles.indexOf(title);
+    return index < 0 ? 0 : index;
   }
 
   static String categoryName(TitleCategory category) {

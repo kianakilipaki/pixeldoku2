@@ -16,6 +16,8 @@ class GameState extends ChangeNotifier {
   int currentLevel = 1;
 
   int mistakes = 0;
+  int _previousAttemptMistakes = 0;
+  int get scoreMistakes => mistakes + _previousAttemptMistakes;
   int maxMistakes = 3;
   int elapsedSeconds = 0;
   int hintsUsedThisLevel = 0;
@@ -39,7 +41,9 @@ class GameState extends ChangeNotifier {
       currentLevel = level;
     }
 
-    difficulty = _getDifficultyFromLevel(currentLevel);
+    difficulty = difficultyForLevel(currentLevel);
+    maxMistakes = 3;
+    _previousAttemptMistakes = 0;
     isDaily = false;
     dailyDateKey = null;
 
@@ -71,15 +75,17 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Starts the shared hard puzzle for a UTC calendar day.
+  /// Starts the shared extra-challenging puzzle for a UTC calendar day.
   void startDailyGame({DateTime? date}) {
     final day = (date ?? DateTime.now()).toUtc();
+    maxMistakes = 3;
+    _previousAttemptMistakes = 0;
     dailyDateKey = formatDailyDateKey(day);
     isDaily = true;
     difficulty = 'Hard';
 
     final game = SudokuGenerator.generateSudoku(
-      difficulty: difficulty,
+      difficulty: 'Daily Hard',
       seed: int.parse(dailyDateKey!),
     );
     puzzle = game['puzzle'];
@@ -248,7 +254,7 @@ class GameState extends ChangeNotifier {
     currentBoard![move.row][move.col] = move.value;
     notes[move.row][move.col] = {...move.notes};
     wrongCells[move.row][move.col] = move.wrong;
-    mistakes = move.mistakes;
+    // Undo cannot refund a lost heart or erase the scoring penalty.
 
     if (hasActiveGame) {
       _saveLocalGameData();
@@ -298,14 +304,18 @@ class GameState extends ChangeNotifier {
   // RETRY GAME
   // -----------------------------
   void retryGame() {
+    if (isDaily) return;
     currentBoard = puzzle!.map((row) => List<int>.from(row)).toList();
     notes = _emptyNotes();
     wrongCells = _emptyWrongCells();
     _history.clear();
 
     mistakes = 0;
-    elapsedSeconds = 0;
-    hintsUsedThisLevel = 0;
+    maxMistakes = 3;
+    if (!isDaily) {
+      elapsedSeconds = 0;
+      hintsUsedThisLevel = 0;
+    }
     completionReward = 0;
 
     gameOver = false;
@@ -330,6 +340,15 @@ class GameState extends ChangeNotifier {
     );
   }
 
+  void addSpareHeart() {
+    if (!gameOver || gameCompleted) return;
+    maxMistakes++;
+    gameOver = false;
+    isPaused = false;
+    notifyListeners();
+    _saveLocalGameData();
+  }
+
   // -----------------------------
   // CONVERT TO JSON
   // -----------------------------
@@ -345,11 +364,15 @@ class GameState extends ChangeNotifier {
       'difficulty': difficulty,
       'currentLevel': currentLevel,
       'mistakes': mistakes,
+      'maxMistakes': maxMistakes,
+      'previousAttemptMistakes': _previousAttemptMistakes,
       'elapsedSeconds': elapsedSeconds,
       'hintsUsedThisLevel': hintsUsedThisLevel,
       'completedAfterRetry': completedAfterRetry,
       'isDaily': isDaily,
       'dailyDateKey': dailyDateKey,
+      'gameOver': gameOver,
+      'gameCompleted': gameCompleted,
     };
   }
 
@@ -379,6 +402,11 @@ class GameState extends ChangeNotifier {
       difficulty = data['difficulty']?.toString() ?? 'Easy';
       currentLevel = _intFromJson(data['currentLevel'], 1);
       mistakes = _intFromJson(data['mistakes'], 0);
+      maxMistakes = _intFromJson(data['maxMistakes'], 3);
+      _previousAttemptMistakes = _intFromJson(
+        data['previousAttemptMistakes'],
+        0,
+      );
       elapsedSeconds = _intFromJson(data['elapsedSeconds'], 0);
       hintsUsedThisLevel = _intFromJson(data['hintsUsedThisLevel'], 0);
       completedAfterRetry = data['completedAfterRetry'] == true;
@@ -415,6 +443,11 @@ class GameState extends ChangeNotifier {
   // CLEAR LOCAL GAME DATA
   // -----------------------------
   Future<void> _clearLocalGameData() async {
+    // Keep a terminal daily save so a restart cannot create another attempt.
+    if (isDaily) {
+      await _saveLocalGameData();
+      return;
+    }
     await _storageService.clearLocalGameData(
       key: isDaily ? StorageService.dailyGameKey : StorageService.savedGameKey,
     );
@@ -440,14 +473,12 @@ class GameState extends ChangeNotifier {
   // -----------------------------
   // DIFFICULTY
   // -----------------------------
-  String _getDifficultyFromLevel(int level) {
-    final band = ((level - 1) ~/ 10) + 1;
-    if (band == 1) return 'Easy';
-    if (band == 2) return 'Medium';
-    if (band == 3) return 'Hard';
-    if (band == 4) return 'Expert';
-
-    return 'Expert +${band - 4}';
+  static String difficultyForLevel(int level) {
+    final safeLevel = level < 1 ? 1 : level;
+    final position = ((safeLevel - 1) % 10) + 1;
+    if (position <= 3) return 'Easy';
+    if (position <= 8) return 'Medium';
+    return 'Hard';
   }
 
   static List<List<Set<int>>> _emptyNotes() {
